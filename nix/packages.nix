@@ -9,6 +9,9 @@
       ...
     }:
     let
+
+      sandbox = pkgs.callPackage ./sandbox.nix { };
+
       minimal = pkgs.callPackage ./hermes-agent.nix {
         inherit (inputs) uv2nix pyproject-nix pyproject-build-systems;
         npm-lockfile-fix = inputs'.npm-lockfile-fix.packages.default;
@@ -45,6 +48,8 @@
     {
       packages = {
         default = full;
+
+        inherit sandbox;
 
         inherit minimal;
 
