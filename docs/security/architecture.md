@@ -40,8 +40,10 @@ Report Generator
 
 ## Phase 1 control-plane slice
 
-The initial `hermes_security` package establishes a non-executing security
-boundary before any pentest worker is connected.
+The initial `agent.security` module establishes a non-executing security
+boundary before any pentest worker is connected. It lives in the existing
+packaged agent namespace but remains separate from the generic conversation
+loop and legacy tool execution paths.
 
 It currently provides:
 
