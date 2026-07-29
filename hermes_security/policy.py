@@ -1,4 +1,4 @@
-"""Policy engine for typed, scope-bound pentest tool requests."""
+"""Policy engine for typed, scope-bound security tool requests."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from .domain import (
     Engagement,
     EngagementStatus,
     PolicyDecision,
+    TargetKind,
     ToolDefinition,
     ToolRequest,
     ToolRisk,
@@ -90,6 +91,13 @@ class PolicyEngine:
                 "tool is not present in the security tool catalogue",
             )
 
+        if definition.domain is not None and definition.domain not in engagement.domains:
+            return PolicyDecision(
+                False,
+                DecisionCode.DOMAIN_NOT_AUTHORIZED,
+                f"engagement does not authorize the {definition.domain.value} domain",
+            )
+
         try:
             definition.arguments_model.model_validate(dict(request.arguments))
         except ValidationError as exc:
@@ -101,27 +109,13 @@ class PolicyEngine:
                 f"invalid tool arguments at {location}: {first_error['msg']}",
             )
 
-        if definition.requires_target:
-            if not request.target_url:
-                return PolicyDecision(
-                    False,
-                    DecisionCode.TARGET_REQUIRED,
-                    "tool requires an explicit target URL",
-                )
-            scope_match = match_scope(request.target_url, engagement.scope)
-            if not scope_match.matched:
-                code = (
-                    DecisionCode.TARGET_INVALID
-                    if scope_match.reason.startswith("target URL")
-                    else DecisionCode.TARGET_OUT_OF_SCOPE
-                )
-                return PolicyDecision(False, code, scope_match.reason)
-        elif request.target_url is not None:
-            return PolicyDecision(
-                False,
-                DecisionCode.INVALID_ARGUMENTS,
-                "non-targeted tool requests must not include target_url",
-            )
+        target_decision = self._authorize_target(
+            engagement=engagement,
+            request=request,
+            definition=definition,
+        )
+        if target_decision is not None:
+            return target_decision
 
         if definition.risk is ToolRisk.VALIDATION:
             if approval is None or approval.status is ApprovalStatus.PENDING:
@@ -145,3 +139,98 @@ class PolicyEngine:
                 )
 
         return PolicyDecision(True, DecisionCode.ALLOW, "policy authorized the tool request")
+
+    @staticmethod
+    def _authorize_target(
+        *,
+        engagement: Engagement,
+        request: ToolRequest,
+        definition: ToolDefinition,
+    ) -> PolicyDecision | None:
+        supplied_targets = sum(
+            value is not None
+            for value in (request.target_url, request.artifact_id, request.device_session_id)
+        )
+
+        if definition.target_kind is TargetKind.NONE:
+            if supplied_targets:
+                return PolicyDecision(
+                    False,
+                    DecisionCode.TARGET_KIND_MISMATCH,
+                    "non-targeted tool requests must not include a target reference",
+                )
+            return None
+
+        if supplied_targets > 1:
+            return PolicyDecision(
+                False,
+                DecisionCode.TARGET_KIND_MISMATCH,
+                "tool requests must contain exactly one target reference",
+            )
+
+        if definition.target_kind is TargetKind.URL:
+            if not request.target_url:
+                return PolicyDecision(
+                    False,
+                    DecisionCode.TARGET_REQUIRED,
+                    "tool requires an explicit target URL",
+                )
+            scope_match = match_scope(request.target_url, engagement.scope)
+            if not scope_match.matched:
+                code = (
+                    DecisionCode.TARGET_INVALID
+                    if scope_match.reason.startswith("target URL")
+                    else DecisionCode.TARGET_OUT_OF_SCOPE
+                )
+                return PolicyDecision(False, code, scope_match.reason)
+            return None
+
+        if definition.target_kind is TargetKind.ARTIFACT:
+            if not request.artifact_id:
+                return PolicyDecision(
+                    False,
+                    DecisionCode.ARTIFACT_REQUIRED,
+                    "tool requires an explicitly registered artefact",
+                )
+            artifact = next(
+                (
+                    candidate
+                    for candidate in engagement.artifacts
+                    if candidate.artifact_id == request.artifact_id
+                ),
+                None,
+            )
+            if artifact is None:
+                return PolicyDecision(
+                    False,
+                    DecisionCode.ARTIFACT_NOT_AUTHORIZED,
+                    "artefact is not registered in this engagement",
+                )
+            if definition.artifact_kinds and artifact.kind not in definition.artifact_kinds:
+                return PolicyDecision(
+                    False,
+                    DecisionCode.ARTIFACT_KIND_NOT_ALLOWED,
+                    f"tool does not accept artefacts of type {artifact.kind.value}",
+                )
+            return None
+
+        if definition.target_kind is TargetKind.DEVICE_SESSION:
+            if not request.device_session_id:
+                return PolicyDecision(
+                    False,
+                    DecisionCode.DEVICE_SESSION_REQUIRED,
+                    "tool requires an explicitly registered device session",
+                )
+            if request.device_session_id not in engagement.device_session_ids:
+                return PolicyDecision(
+                    False,
+                    DecisionCode.DEVICE_SESSION_NOT_AUTHORIZED,
+                    "device session is not registered in this engagement",
+                )
+            return None
+
+        return PolicyDecision(
+            False,
+            DecisionCode.TARGET_KIND_MISMATCH,
+            "unsupported target kind",
+        )
