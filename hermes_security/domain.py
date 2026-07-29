@@ -1,8 +1,9 @@
-"""Security-domain types for authorized web-application testing.
+"""Security-domain types for authorized multi-discipline assessments.
 
 These types deliberately contain no execution logic. They describe engagements,
-scope, typed tool requests, approvals, and policy outcomes that must exist before
-an agent can ask a worker to perform an action.
+scope, registered artefacts, device sessions, typed tool requests, approvals, and
+policy outcomes that must exist before an agent can ask an isolated worker to
+perform an action.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from pydantic import BaseModel
 
 
 _TOOL_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
+_SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
 def canonical_host(host: str) -> str:
@@ -64,6 +66,28 @@ def canonical_path(path: str) -> str:
     return "/" if normalized == "." else normalized
 
 
+class SecurityDomain(StrEnum):
+    WEB = "web"
+    MOBILE = "mobile"
+    REVERSE_ENGINEERING = "reverse_engineering"
+
+
+class TargetKind(StrEnum):
+    URL = "url"
+    ARTIFACT = "artifact"
+    DEVICE_SESSION = "device_session"
+    NONE = "none"
+
+
+class ArtifactKind(StrEnum):
+    ANDROID_APK = "android_apk"
+    ANDROID_AAB = "android_aab"
+    IOS_IPA = "ios_ipa"
+    NATIVE_BINARY = "native_binary"
+    MANAGED_ASSEMBLY = "managed_assembly"
+    FIRMWARE_IMAGE = "firmware_image"
+
+
 class EngagementStatus(StrEnum):
     DRAFT = "draft"
     ACTIVE = "active"
@@ -88,18 +112,27 @@ class DecisionCode(StrEnum):
     ALLOW = "allow"
     ENGAGEMENT_MISMATCH = "engagement_mismatch"
     ENGAGEMENT_INACTIVE = "engagement_inactive"
+    DOMAIN_NOT_AUTHORIZED = "domain_not_authorized"
     FORBIDDEN_TOOL = "forbidden_tool"
     TOOL_NOT_REGISTERED = "tool_not_registered"
     INVALID_ARGUMENTS = "invalid_arguments"
+    TARGET_KIND_MISMATCH = "target_kind_mismatch"
     TARGET_REQUIRED = "target_required"
     TARGET_INVALID = "target_invalid"
     TARGET_OUT_OF_SCOPE = "target_out_of_scope"
+    ARTIFACT_REQUIRED = "artifact_required"
+    ARTIFACT_NOT_AUTHORIZED = "artifact_not_authorized"
+    ARTIFACT_KIND_NOT_ALLOWED = "artifact_kind_not_allowed"
+    DEVICE_SESSION_REQUIRED = "device_session_required"
+    DEVICE_SESSION_NOT_AUTHORIZED = "device_session_not_authorized"
     APPROVAL_REQUIRED = "approval_required"
     APPROVAL_INVALID = "approval_invalid"
 
 
 @dataclass(frozen=True, slots=True)
 class ScopeRule:
+    """Explicit HTTP(S) scope rule for a web target."""
+
     scheme: str
     host: str
     port: int | None = None
@@ -123,19 +156,51 @@ class ScopeRule:
 
 
 @dataclass(frozen=True, slots=True)
+class ArtifactScope:
+    """Immutable artefact registered by the operator for authorised analysis."""
+
+    artifact_id: str
+    kind: ArtifactKind
+    sha256: str
+    display_name: str
+
+    def __post_init__(self) -> None:
+        if not self.artifact_id.strip():
+            raise ValueError("artifact_id is required")
+        if not self.display_name.strip():
+            raise ValueError("artifact display_name is required")
+        if not _SHA256_RE.fullmatch(self.sha256):
+            raise ValueError("artifact sha256 must contain exactly 64 hexadecimal characters")
+        object.__setattr__(self, "sha256", self.sha256.lower())
+
+
+@dataclass(frozen=True, slots=True)
 class Engagement:
     engagement_id: str
     name: str
     status: EngagementStatus
-    scope: tuple[ScopeRule, ...]
+    scope: tuple[ScopeRule, ...] = ()
+    domains: tuple[SecurityDomain, ...] = (SecurityDomain.WEB,)
+    artifacts: tuple[ArtifactScope, ...] = ()
+    device_session_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.engagement_id.strip():
             raise ValueError("engagement_id is required")
         if not self.name.strip():
             raise ValueError("engagement name is required")
-        if self.status is EngagementStatus.ACTIVE and not self.scope:
-            raise ValueError("active engagements require at least one scope rule")
+        if not self.domains:
+            raise ValueError("engagement must authorize at least one security domain")
+        if len(set(self.domains)) != len(self.domains):
+            raise ValueError("engagement domains must be unique")
+        if len({artifact.artifact_id for artifact in self.artifacts}) != len(self.artifacts):
+            raise ValueError("artifact IDs must be unique within an engagement")
+        if len(set(self.device_session_ids)) != len(self.device_session_ids):
+            raise ValueError("device session IDs must be unique within an engagement")
+        if self.status is EngagementStatus.ACTIVE and not (
+            self.scope or self.artifacts or self.device_session_ids
+        ):
+            raise ValueError("active engagements require at least one authorised target")
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,14 +208,18 @@ class ToolDefinition:
     name: str
     risk: ToolRisk
     arguments_model: type[BaseModel]
-    requires_target: bool = True
+    domain: SecurityDomain | None = SecurityDomain.WEB
+    target_kind: TargetKind = TargetKind.URL
     network_access: bool = True
+    artifact_kinds: frozenset[ArtifactKind] = frozenset()
 
     def __post_init__(self) -> None:
         if not _TOOL_NAME_RE.fullmatch(self.name):
             raise ValueError("tool names must use lower_snake_case")
         if not issubclass(self.arguments_model, BaseModel):
             raise TypeError("arguments_model must be a pydantic BaseModel type")
+        if self.artifact_kinds and self.target_kind is not TargetKind.ARTIFACT:
+            raise ValueError("artifact_kinds may only be set for artifact-targeted tools")
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,6 +228,8 @@ class ToolRequest:
     engagement_id: str
     tool_name: str
     target_url: str | None = None
+    artifact_id: str | None = None
+    device_session_id: str | None = None
     arguments: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
