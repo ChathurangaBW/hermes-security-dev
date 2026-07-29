@@ -2,8 +2,8 @@
 
 Capability packs declare which typed tools, target kinds, worker profiles,
 evidence schemas, finding templates, and report sections belong to a domain.
-Registration is fail-closed: unknown tools, mismatched domains, unsupported target
-kinds, and unregistered worker profiles are rejected before a pack can be enabled.
+Registration is fail-closed: unknown tools, mismatched domains, unsupported
+target kinds, and unregistered worker profiles are rejected before enablement.
 """
 
 from __future__ import annotations
@@ -21,8 +21,7 @@ from .security import (
     TargetKind,
     ToolDefinition,
 )
-from .security_workers import WorkerProfileRegistry
-
+from .security_jobs import DEFAULT_WORKER_PROFILES, WorkerProfile
 
 _PACK_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{2,63}$")
 _SCHEMA_ID_RE = re.compile(r"^[a-z][a-z0-9_.:-]{2,127}$")
@@ -104,11 +103,11 @@ class CapabilityPackManifest:
             *self.report_section_ids,
         )
         if any(not _SCHEMA_ID_RE.fullmatch(identifier) for identifier in identifiers):
-            raise ValueError("schema, template, and report identifiers must use constrained slugs")
+            raise ValueError("schema, template, and report IDs must use constrained slugs")
 
 
 class CapabilityPack(ABC):
-    """Common interface implemented by independently versioned domain packs."""
+    """Interface implemented by independently versioned domain packs."""
 
     @property
     @abstractmethod
@@ -122,11 +121,11 @@ class CapabilityPack(ABC):
         target_kind: TargetKind,
         target_reference: str | None,
     ) -> ScopeDecision:
-        """Validate a proposed target against the engagement's authoritative scope."""
+        """Validate a target against the engagement's authoritative scope."""
 
     @abstractmethod
     def propose_plan(self, context: Mapping[str, Any]) -> AssessmentPlan:
-        """Produce a typed-tool plan; this method must not execute tools."""
+        """Produce a typed-tool plan without executing tools."""
 
     @abstractmethod
     def verify_finding(
@@ -138,7 +137,7 @@ class CapabilityPack(ABC):
 
     @abstractmethod
     def render_report_section(self, engagement: Engagement) -> ReportSection:
-        """Render the pack's report section from persisted validated data."""
+        """Render a report section from persisted validated data."""
 
 
 class CapabilityPackRegistry:
@@ -147,12 +146,12 @@ class CapabilityPackRegistry:
     def __init__(
         self,
         definitions: tuple[ToolDefinition, ...] = DEFAULT_TOOL_DEFINITIONS,
-        worker_profiles: WorkerProfileRegistry | None = None,
+        worker_profiles: Mapping[str, WorkerProfile] = DEFAULT_WORKER_PROFILES,
     ) -> None:
         self._definitions = {definition.name: definition for definition in definitions}
         if len(self._definitions) != len(definitions):
             raise ValueError("tool definitions must have unique names")
-        self._worker_profiles = worker_profiles or WorkerProfileRegistry()
+        self._worker_profiles = MappingProxyType(dict(worker_profiles))
         self._manifests: dict[tuple[str, str], CapabilityPackManifest] = {}
         self._enabled: set[tuple[str, str]] = set()
 
@@ -162,7 +161,10 @@ class CapabilityPackRegistry:
             raise ValueError(f"capability pack {manifest.name}@{manifest.version} is registered")
 
         for profile_name in manifest.required_worker_profiles:
-            self._worker_profiles.resolve(profile_name)
+            if profile_name not in self._worker_profiles:
+                raise ValueError(
+                    f"capability pack references unknown worker profile {profile_name!r}"
+                )
 
         for tool_name in manifest.tool_names:
             try:
@@ -213,10 +215,7 @@ class CapabilityPackRegistry:
 
     @property
     def enabled(self) -> tuple[CapabilityPackManifest, ...]:
-        return tuple(
-            self._manifests[key]
-            for key in sorted(self._enabled)
-        )
+        return tuple(self._manifests[key] for key in sorted(self._enabled))
 
 
 WEB_CAPABILITY_PACK = CapabilityPackManifest(
