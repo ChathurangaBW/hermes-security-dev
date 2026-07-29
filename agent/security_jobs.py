@@ -28,7 +28,6 @@ from .security import (
     TypedToolBroker,
 )
 
-
 _ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 _MEDIA_TYPE_RE = re.compile(r"^[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+$")
@@ -106,126 +105,130 @@ class EvidenceRequirement:
 DEFAULT_WORKER_PROFILES: Mapping[str, WorkerProfile] = MappingProxyType(
     {
         "web-passive": WorkerProfile(
-            name="web-passive",
-            isolation=IsolationKind.CONTAINER,
-            domains=frozenset({SecurityDomain.WEB}),
-            target_kinds=frozenset({TargetKind.URL}),
-            network_policy=NetworkPolicy.SCOPE_ALLOWLIST,
-            max_duration_seconds=300,
-            max_cpu_cores=1.0,
-            max_memory_mb=512,
+            "web-passive",
+            IsolationKind.CONTAINER,
+            frozenset({SecurityDomain.WEB}),
+            frozenset({TargetKind.URL}),
+            NetworkPolicy.SCOPE_ALLOWLIST,
+            300,
+            1.0,
+            512,
         ),
         "web-active-safe": WorkerProfile(
-            name="web-active-safe",
-            isolation=IsolationKind.CONTAINER,
-            domains=frozenset({SecurityDomain.WEB}),
-            target_kinds=frozenset({TargetKind.URL}),
-            network_policy=NetworkPolicy.SCOPE_ALLOWLIST,
-            max_duration_seconds=180,
-            max_cpu_cores=1.0,
-            max_memory_mb=768,
+            "web-active-safe",
+            IsolationKind.CONTAINER,
+            frozenset({SecurityDomain.WEB}),
+            frozenset({TargetKind.URL}),
+            NetworkPolicy.SCOPE_ALLOWLIST,
+            180,
+            1.0,
+            768,
         ),
         "web-validation": WorkerProfile(
-            name="web-validation",
-            isolation=IsolationKind.MICROVM,
-            domains=frozenset({SecurityDomain.WEB}),
-            target_kinds=frozenset({TargetKind.URL}),
-            network_policy=NetworkPolicy.SCOPE_ALLOWLIST,
-            max_duration_seconds=120,
-            max_cpu_cores=1.0,
-            max_memory_mb=1_024,
+            "web-validation",
+            IsolationKind.MICROVM,
+            frozenset({SecurityDomain.WEB}),
+            frozenset({TargetKind.URL}),
+            NetworkPolicy.SCOPE_ALLOWLIST,
+            120,
+            1.0,
+            1_024,
         ),
         "mobile-static": WorkerProfile(
-            name="mobile-static",
-            isolation=IsolationKind.CONTAINER,
-            domains=frozenset({SecurityDomain.MOBILE}),
-            target_kinds=frozenset({TargetKind.ARTIFACT}),
-            network_policy=NetworkPolicy.DISABLED,
-            max_duration_seconds=600,
-            max_cpu_cores=2.0,
-            max_memory_mb=2_048,
+            "mobile-static",
+            IsolationKind.CONTAINER,
+            frozenset({SecurityDomain.MOBILE}),
+            frozenset({TargetKind.ARTIFACT}),
+            NetworkPolicy.DISABLED,
+            600,
+            2.0,
+            2_048,
         ),
         "mobile-runtime": WorkerProfile(
-            name="mobile-runtime",
-            isolation=IsolationKind.EMULATOR,
-            domains=frozenset({SecurityDomain.MOBILE}),
-            target_kinds=frozenset({TargetKind.DEVICE_SESSION}),
-            network_policy=NetworkPolicy.ENGAGEMENT_PROXY,
-            max_duration_seconds=120,
-            max_cpu_cores=2.0,
-            max_memory_mb=4_096,
+            "mobile-runtime",
+            IsolationKind.EMULATOR,
+            frozenset({SecurityDomain.MOBILE}),
+            frozenset({TargetKind.DEVICE_SESSION}),
+            NetworkPolicy.ENGAGEMENT_PROXY,
+            120,
+            2.0,
+            4_096,
         ),
         "reverse-static": WorkerProfile(
-            name="reverse-static",
-            isolation=IsolationKind.CONTAINER,
-            domains=frozenset({SecurityDomain.REVERSE_ENGINEERING}),
-            target_kinds=frozenset({TargetKind.ARTIFACT}),
-            network_policy=NetworkPolicy.DISABLED,
-            max_duration_seconds=900,
-            max_cpu_cores=2.0,
-            max_memory_mb=4_096,
+            "reverse-static",
+            IsolationKind.CONTAINER,
+            frozenset({SecurityDomain.REVERSE_ENGINEERING}),
+            frozenset({TargetKind.ARTIFACT}),
+            NetworkPolicy.DISABLED,
+            900,
+            2.0,
+            4_096,
         ),
         "reverse-runtime": WorkerProfile(
-            name="reverse-runtime",
-            isolation=IsolationKind.MICROVM,
-            domains=frozenset({SecurityDomain.REVERSE_ENGINEERING}),
-            target_kinds=frozenset({TargetKind.ARTIFACT}),
-            network_policy=NetworkPolicy.DISABLED,
-            max_duration_seconds=120,
-            max_cpu_cores=2.0,
-            max_memory_mb=4_096,
+            "reverse-runtime",
+            IsolationKind.MICROVM,
+            frozenset({SecurityDomain.REVERSE_ENGINEERING}),
+            frozenset({TargetKind.ARTIFACT}),
+            NetworkPolicy.DISABLED,
+            120,
+            2.0,
+            4_096,
         ),
         "reporting": WorkerProfile(
-            name="reporting",
-            isolation=IsolationKind.CONTAINER,
-            domains=frozenset(),
-            target_kinds=frozenset({TargetKind.NONE}),
-            network_policy=NetworkPolicy.DISABLED,
-            max_duration_seconds=120,
-            max_cpu_cores=1.0,
-            max_memory_mb=512,
+            "reporting",
+            IsolationKind.CONTAINER,
+            frozenset(),
+            frozenset({TargetKind.NONE}),
+            NetworkPolicy.DISABLED,
+            120,
+            1.0,
+            512,
         ),
     }
 )
 
 
+def _requirements(*items: tuple[EvidenceKind, bool, int]) -> tuple[EvidenceRequirement, ...]:
+    return tuple(EvidenceRequirement(*item) for item in items)
+
+
 DEFAULT_EVIDENCE_REQUIREMENTS: Mapping[str, tuple[EvidenceRequirement, ...]] = (
     MappingProxyType(
         {
-            "web-passive": (
-                EvidenceRequirement(EvidenceKind.HTTP_TRANSCRIPT, True, 50_000_000),
-                EvidenceRequirement(EvidenceKind.TOOL_LOG, True, 10_000_000),
+            "web-passive": _requirements(
+                (EvidenceKind.HTTP_TRANSCRIPT, True, 50_000_000),
+                (EvidenceKind.TOOL_LOG, True, 10_000_000),
             ),
-            "web-active-safe": (
-                EvidenceRequirement(EvidenceKind.HTTP_TRANSCRIPT, True, 50_000_000),
-                EvidenceRequirement(EvidenceKind.TOOL_LOG, True, 10_000_000),
+            "web-active-safe": _requirements(
+                (EvidenceKind.HTTP_TRANSCRIPT, True, 50_000_000),
+                (EvidenceKind.TOOL_LOG, True, 10_000_000),
             ),
-            "web-validation": (
-                EvidenceRequirement(EvidenceKind.HTTP_TRANSCRIPT, True, 50_000_000),
-                EvidenceRequirement(EvidenceKind.SCREENSHOT, False, 25_000_000),
-                EvidenceRequirement(EvidenceKind.TOOL_LOG, True, 10_000_000),
+            "web-validation": _requirements(
+                (EvidenceKind.HTTP_TRANSCRIPT, True, 50_000_000),
+                (EvidenceKind.SCREENSHOT, False, 25_000_000),
+                (EvidenceKind.TOOL_LOG, True, 10_000_000),
             ),
-            "mobile-static": (
-                EvidenceRequirement(EvidenceKind.ARTIFACT_ANALYSIS, True, 100_000_000),
-                EvidenceRequirement(EvidenceKind.TOOL_LOG, True, 10_000_000),
+            "mobile-static": _requirements(
+                (EvidenceKind.ARTIFACT_ANALYSIS, True, 100_000_000),
+                (EvidenceKind.TOOL_LOG, True, 10_000_000),
             ),
-            "mobile-runtime": (
-                EvidenceRequirement(EvidenceKind.RUNTIME_TRACE, True, 250_000_000),
-                EvidenceRequirement(EvidenceKind.SCREENSHOT, False, 100_000_000),
-                EvidenceRequirement(EvidenceKind.TOOL_LOG, True, 25_000_000),
+            "mobile-runtime": _requirements(
+                (EvidenceKind.RUNTIME_TRACE, True, 250_000_000),
+                (EvidenceKind.SCREENSHOT, False, 100_000_000),
+                (EvidenceKind.TOOL_LOG, True, 25_000_000),
             ),
-            "reverse-static": (
-                EvidenceRequirement(EvidenceKind.ARTIFACT_ANALYSIS, True, 250_000_000),
-                EvidenceRequirement(EvidenceKind.TOOL_LOG, True, 25_000_000),
+            "reverse-static": _requirements(
+                (EvidenceKind.ARTIFACT_ANALYSIS, True, 250_000_000),
+                (EvidenceKind.TOOL_LOG, True, 25_000_000),
             ),
-            "reverse-runtime": (
-                EvidenceRequirement(EvidenceKind.RUNTIME_TRACE, True, 500_000_000),
-                EvidenceRequirement(EvidenceKind.PROCESS_METADATA, True, 50_000_000),
-                EvidenceRequirement(EvidenceKind.TOOL_LOG, True, 25_000_000),
+            "reverse-runtime": _requirements(
+                (EvidenceKind.RUNTIME_TRACE, True, 500_000_000),
+                (EvidenceKind.PROCESS_METADATA, True, 50_000_000),
+                (EvidenceKind.TOOL_LOG, True, 25_000_000),
             ),
-            "reporting": (
-                EvidenceRequirement(EvidenceKind.REPORT_OUTPUT, True, 100_000_000),
-                EvidenceRequirement(EvidenceKind.TOOL_LOG, True, 10_000_000),
+            "reporting": _requirements(
+                (EvidenceKind.REPORT_OUTPUT, True, 100_000_000),
+                (EvidenceKind.TOOL_LOG, True, 10_000_000),
             ),
         }
     )
@@ -259,9 +262,9 @@ class WorkerJobEnvelope:
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def __post_init__(self) -> None:
-        for field_name in ("job_id", "engagement_id", "policy_decision_id", "request_id"):
-            if not _ID_RE.fullmatch(getattr(self, field_name)):
-                raise ValueError(f"{field_name} is invalid")
+        for name in ("job_id", "engagement_id", "policy_decision_id", "request_id"):
+            if not _ID_RE.fullmatch(getattr(self, name)):
+                raise ValueError(f"{name} is invalid")
         if not _SHA256_RE.fullmatch(self.request_fingerprint):
             raise ValueError("request_fingerprint must be a SHA-256 hex digest")
         if self.created_at.tzinfo is None:
@@ -270,10 +273,7 @@ class WorkerJobEnvelope:
             raise ValueError("worker jobs must never be privileged")
 
         arguments = dict(self.arguments)
-        try:
-            json.dumps(arguments, sort_keys=True, separators=(",", ":"))
-        except (TypeError, ValueError) as exc:
-            raise ValueError("worker arguments must be JSON serializable") from exc
+        _ensure_json(arguments, "worker arguments")
         object.__setattr__(self, "arguments", MappingProxyType(arguments))
         object.__setattr__(self, "request_fingerprint", self.request_fingerprint.lower())
 
@@ -288,38 +288,39 @@ class WorkerJobEnvelope:
 
     @property
     def job_fingerprint(self) -> str:
-        payload = {
-            "approval_id": self.approval_id,
-            "arguments": dict(self.arguments),
-            "artifact_id": self.artifact_id,
-            "device_session_id": self.device_session_id,
-            "engagement_id": self.engagement_id,
-            "evidence_requirements": [
-                {
-                    "kind": requirement.kind.value,
-                    "max_bytes": requirement.max_bytes,
-                    "required": requirement.required,
-                }
-                for requirement in self.evidence_requirements
-            ],
-            "isolation": self.isolation.value,
-            "job_id": self.job_id,
-            "max_cpu_cores": self.max_cpu_cores,
-            "max_duration_seconds": self.max_duration_seconds,
-            "max_memory_mb": self.max_memory_mb,
-            "network_policy": self.network_policy.value,
-            "policy_decision_id": self.policy_decision_id,
-            "privileged": self.privileged,
-            "read_only_rootfs": self.read_only_rootfs,
-            "request_fingerprint": self.request_fingerprint,
-            "request_id": self.request_id,
-            "security_domain": self.security_domain.value if self.security_domain else None,
-            "target_kind": self.target_kind.value,
-            "target_url": self.target_url,
-            "tool_name": self.tool_name,
-            "worker_profile": self.worker_profile,
-        }
-        return _hash_json(payload)
+        return _hash_json(
+            {
+                "approval_id": self.approval_id,
+                "arguments": dict(self.arguments),
+                "artifact_id": self.artifact_id,
+                "device_session_id": self.device_session_id,
+                "engagement_id": self.engagement_id,
+                "evidence_requirements": [
+                    {
+                        "kind": item.kind.value,
+                        "max_bytes": item.max_bytes,
+                        "required": item.required,
+                    }
+                    for item in self.evidence_requirements
+                ],
+                "isolation": self.isolation.value,
+                "job_id": self.job_id,
+                "max_cpu_cores": self.max_cpu_cores,
+                "max_duration_seconds": self.max_duration_seconds,
+                "max_memory_mb": self.max_memory_mb,
+                "network_policy": self.network_policy.value,
+                "policy_decision_id": self.policy_decision_id,
+                "privileged": self.privileged,
+                "read_only_rootfs": self.read_only_rootfs,
+                "request_fingerprint": self.request_fingerprint,
+                "request_id": self.request_id,
+                "security_domain": self.security_domain.value if self.security_domain else None,
+                "target_kind": self.target_kind.value,
+                "target_url": self.target_url,
+                "tool_name": self.tool_name,
+                "worker_profile": self.worker_profile,
+            }
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -373,26 +374,27 @@ class EvidenceManifest:
 
     @property
     def manifest_fingerprint(self) -> str:
-        payload = {
-            "artifacts": [
-                {
-                    "captured_at": artifact.captured_at.isoformat(),
-                    "evidence_id": artifact.evidence_id,
-                    "job_id": artifact.job_id,
-                    "kind": artifact.kind.value,
-                    "media_type": artifact.media_type,
-                    "object_key": artifact.object_key,
-                    "sha256": artifact.sha256,
-                    "size_bytes": artifact.size_bytes,
-                }
-                for artifact in self.artifacts
-            ],
-            "job_fingerprint": self.job_fingerprint,
-            "job_id": self.job_id,
-            "manifest_id": self.manifest_id,
-            "sealed_at": self.sealed_at.isoformat(),
-        }
-        return _hash_json(payload)
+        return _hash_json(
+            {
+                "artifacts": [
+                    {
+                        "captured_at": item.captured_at.isoformat(),
+                        "evidence_id": item.evidence_id,
+                        "job_id": item.job_id,
+                        "kind": item.kind.value,
+                        "media_type": item.media_type,
+                        "object_key": item.object_key,
+                        "sha256": item.sha256,
+                        "size_bytes": item.size_bytes,
+                    }
+                    for item in self.artifacts
+                ],
+                "job_fingerprint": self.job_fingerprint,
+                "job_id": self.job_id,
+                "manifest_id": self.manifest_id,
+                "sealed_at": self.sealed_at.isoformat(),
+            }
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -407,38 +409,35 @@ class AuditEvent:
     previous_event_hash: str | None = None
 
     def __post_init__(self) -> None:
-        for field_name in ("event_id", "engagement_id", "job_id", "actor_id"):
-            if not _ID_RE.fullmatch(getattr(self, field_name)):
-                raise ValueError(f"{field_name} is invalid")
+        for name in ("event_id", "engagement_id", "job_id", "actor_id"):
+            if not _ID_RE.fullmatch(getattr(self, name)):
+                raise ValueError(f"{name} is invalid")
         if self.occurred_at.tzinfo is None:
             raise ValueError("occurred_at must be timezone-aware")
         if self.previous_event_hash is not None and not _SHA256_RE.fullmatch(
             self.previous_event_hash
         ):
             raise ValueError("previous_event_hash must be a SHA-256 hex digest")
-
         details = dict(self.details)
-        try:
-            json.dumps(details, sort_keys=True, separators=(",", ":"))
-        except (TypeError, ValueError) as exc:
-            raise ValueError("audit details must be JSON serializable") from exc
+        _ensure_json(details, "audit details")
         object.__setattr__(self, "details", MappingProxyType(details))
         if self.previous_event_hash is not None:
             object.__setattr__(self, "previous_event_hash", self.previous_event_hash.lower())
 
     @property
     def event_hash(self) -> str:
-        payload = {
-            "actor_id": self.actor_id,
-            "details": dict(self.details),
-            "engagement_id": self.engagement_id,
-            "event_id": self.event_id,
-            "event_type": self.event_type.value,
-            "job_id": self.job_id,
-            "occurred_at": self.occurred_at.isoformat(),
-            "previous_event_hash": self.previous_event_hash,
-        }
-        return _hash_json(payload)
+        return _hash_json(
+            {
+                "actor_id": self.actor_id,
+                "details": dict(self.details),
+                "engagement_id": self.engagement_id,
+                "event_id": self.event_id,
+                "event_type": self.event_type.value,
+                "job_id": self.job_id,
+                "occurred_at": self.occurred_at.isoformat(),
+                "previous_event_hash": self.previous_event_hash,
+            }
+        )
 
 
 class JobAuthorizationError(RuntimeError):
@@ -459,12 +458,8 @@ def build_worker_job(
         str, tuple[EvidenceRequirement, ...]
     ] = DEFAULT_EVIDENCE_REQUIREMENTS,
 ) -> WorkerJobEnvelope:
-    """Convert an authorised request into a fixed immutable worker job."""
-    decision = broker.authorize(
-        engagement=engagement,
-        request=request,
-        approval=approval,
-    )
+    """Convert an authorised request into a fixed, least-privilege worker job."""
+    decision = broker.authorize(engagement=engagement, request=request, approval=approval)
     if not decision.allowed:
         raise JobAuthorizationError(f"{decision.code.value}: {decision.reason}")
 
@@ -476,14 +471,19 @@ def build_worker_job(
         )
     _validate_definition_profile(definition, profile)
 
-    requested_duration = request.arguments.get("duration_seconds")
+    validated = definition.arguments_model.model_validate(dict(request.arguments))
+    materialized_arguments = validated.model_dump(mode="json")
+    requested_duration = materialized_arguments.get("duration_seconds")
     if requested_duration is not None and requested_duration > profile.max_duration_seconds:
         raise JobAuthorizationError("requested duration exceeds the worker profile limit")
 
+    network_policy = _least_privilege_network_policy(
+        profile=profile,
+        arguments=materialized_arguments,
+    )
     requirements = evidence_requirements.get(profile.name)
     if not requirements:
         raise JobAuthorizationError("worker profile has no evidence requirements")
-
     if definition.risk is ToolRisk.VALIDATION and approval is None:
         raise JobAuthorizationError("validation job requires a persisted approval")
 
@@ -497,12 +497,12 @@ def build_worker_job(
         security_domain=definition.domain,
         worker_profile=profile.name,
         isolation=profile.isolation,
-        network_policy=profile.network_policy,
+        network_policy=network_policy,
         target_kind=definition.target_kind,
         target_url=request.target_url,
         artifact_id=request.artifact_id,
         device_session_id=request.device_session_id,
-        arguments=request.arguments,
+        arguments=materialized_arguments,
         approval_id=approval.approval_id if approval is not None else None,
         max_duration_seconds=profile.max_duration_seconds,
         max_cpu_cores=profile.max_cpu_cores,
@@ -521,10 +521,7 @@ def _find_definition(broker: TypedToolBroker, tool_name: str) -> ToolDefinition:
     raise JobAuthorizationError("authorised tool definition disappeared from the broker")
 
 
-def _validate_definition_profile(
-    definition: ToolDefinition,
-    profile: WorkerProfile,
-) -> None:
+def _validate_definition_profile(definition: ToolDefinition, profile: WorkerProfile) -> None:
     if definition.domain is not None and definition.domain not in profile.domains:
         raise JobAuthorizationError("tool domain is incompatible with its worker profile")
     if definition.domain is None and profile.domains:
@@ -537,14 +534,41 @@ def _validate_definition_profile(
         raise JobAuthorizationError("offline tool cannot use a network-enabled profile")
 
 
+def _least_privilege_network_policy(
+    *,
+    profile: WorkerProfile,
+    arguments: Mapping[str, Any],
+) -> NetworkPolicy:
+    requested = arguments.get("network_mode")
+    if requested is None:
+        return profile.network_policy
+    try:
+        requested_policy = NetworkPolicy(requested)
+    except ValueError as exc:
+        raise JobAuthorizationError("requested network mode is not supported") from exc
+    if requested_policy is NetworkPolicy.DISABLED:
+        return NetworkPolicy.DISABLED
+    if requested_policy is not profile.network_policy:
+        raise JobAuthorizationError("requested network mode exceeds the worker profile")
+    return requested_policy
+
+
+def _ensure_json(payload: Mapping[str, Any], label: str) -> None:
+    try:
+        json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{label} must be JSON serializable") from exc
+
+
 def _hash_json(payload: Mapping[str, Any]) -> str:
-    encoded = json.dumps(
-        payload,
-        ensure_ascii=True,
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 __all__ = [
