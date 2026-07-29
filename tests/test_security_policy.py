@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from hermes_security import (
+from agent.security import (
     Approval,
     ApprovalStatus,
     DecisionCode,
